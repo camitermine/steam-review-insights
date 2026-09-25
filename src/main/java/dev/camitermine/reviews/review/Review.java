@@ -4,6 +4,8 @@ import java.time.Instant;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -30,6 +32,10 @@ public class Review {
 
     private Instant createdAt;
 
+    /** Null hasta que la reseña se clasifica. */
+    @Enumerated(EnumType.STRING)
+    private ReviewCategory category;
+
     protected Review() {
         // requerido por JPA
     }
@@ -52,4 +58,9 @@ public class Review {
     public boolean isVotedUp() { return votedUp; }
     public int getPlaytimeAtReview() { return playtimeAtReview; }
     public Instant getCreatedAt() { return createdAt; }
+    public ReviewCategory getCategory() { return category; }
+
+    public void classifyAs(ReviewCategory category) {
+        this.category = category;
+    }
 }
