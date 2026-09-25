@@ -1,0 +1,36 @@
+# Levanta PostgreSQL y la app:   docker compose up --build
+# Solo la base (para correr la app desde IntelliJ):   docker compose up -d postgres
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: reviews
+      POSTGRES_USER: reviews
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reviews}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reviews -d reviews"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/reviews
+      SPRING_DATASOURCE_USERNAME: reviews
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-reviews}
+      # Se toma de la variable de entorno de tu máquina; nunca se escribe en este archivo.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    ports:
+      - "${APP_PORT:-8081}:8081"
+
+volumes:
+  postgres-data:

@@ -1,5 +1,7 @@
 # Steam Review Insights
 
+![CI](https://github.com/camitermine/steam-review-insights/actions/workflows/ci.yml/badge.svg)
+
 REST API that imports the Steam reviews of a game and uses Claude to turn them into actionable feedback for the dev team: which reviews report bugs, which ask for features, and which are just praise.
 
 Built around [Goblin Cleanup](https://store.steampowered.com/app/2748340/) (published by Team17), a multiplayer game I work on.
@@ -16,26 +18,31 @@ Built around [Goblin Cleanup](https://store.steampowered.com/app/2748340/) (publ
 - Paginated listing with filters (positive / negative, category)
 - Aggregated stats (% positive, counts per category)
 - OpenAPI / Swagger documentation
+- PostgreSQL with versioned schema migrations (Flyway)
+- Dockerized: multi-stage image running as a non-root user, one-command setup with Docker Compose
+- Integration tests against a real PostgreSQL with Testcontainers, run on every push by GitHub Actions
 
 ### Roadmap
 
 - [x] Classify reviews with an LLM
 - [x] OpenAPI / Swagger documentation
-- [ ] PostgreSQL + Docker Compose
-- [ ] CI with GitHub Actions
+- [x] PostgreSQL + Docker Compose
+- [x] CI with GitHub Actions
 - [ ] Weekly digest to Discord with n8n
 
 ## Tech stack
 
-Java 21 · Spring Boot 4 · Spring Data JPA / Hibernate · Anthropic Java SDK (Claude Haiku 4.5) · springdoc-openapi · H2 (dev) · JUnit 5 · Mockito · Maven
+Java 21 · Spring Boot 4 · Spring Data JPA / Hibernate · PostgreSQL 17 · Flyway · Anthropic Java SDK (Claude Haiku 4.5) · springdoc-openapi · Docker / Docker Compose · JUnit 5 · Mockito · Testcontainers · GitHub Actions · Maven
 
 ## Running locally
 
-Requirements: Java 21 and an [Anthropic API key](https://console.anthropic.com/) in the `ANTHROPIC_API_KEY` environment variable (only needed for classification).
+Requirements: Docker, and an [Anthropic API key](https://console.anthropic.com/) in the `ANTHROPIC_API_KEY` environment variable (only needed for classification).
 
 ```bash
-./mvnw spring-boot:run
+docker compose up --build
 ```
+
+To run the app from your IDE instead, start only the database with `docker compose up -d postgres` and run `./mvnw spring-boot:run` (Java 21).
 
 The API runs on `http://localhost:8081`. Interactive docs: `http://localhost:8081/swagger-ui.html`.
 
@@ -65,4 +72,4 @@ curl "localhost:8081/api/reviews?category=BUG"
 ./mvnw test
 ```
 
-Tests mock the Claude classifier, so they need no API key and spend no credits.
+Tests mock the Claude classifier, so they need no API key and spend no credits. Integration tests (`*IT`) start a PostgreSQL container, so Docker must be running.
