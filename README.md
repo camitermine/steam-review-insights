@@ -21,6 +21,7 @@ Built around [Goblin Cleanup](https://store.steampowered.com/app/2748340/) (publ
 - PostgreSQL with versioned schema migrations (Flyway)
 - Dockerized: multi-stage image running as a non-root user, one-command setup with Docker Compose
 - Integration tests against a real PostgreSQL with Testcontainers, run on every push by GitHub Actions
+- **Weekly Discord digest** automated with n8n: every Monday it imports new reviews, classifies them and posts a summary with the latest bug reports
 
 ### Roadmap
 
@@ -28,11 +29,11 @@ Built around [Goblin Cleanup](https://store.steampowered.com/app/2748340/) (publ
 - [x] OpenAPI / Swagger documentation
 - [x] PostgreSQL + Docker Compose
 - [x] CI with GitHub Actions
-- [ ] Weekly digest to Discord with n8n
+- [x] Weekly digest to Discord with n8n
 
 ## Tech stack
 
-Java 21 · Spring Boot 4 · Spring Data JPA / Hibernate · PostgreSQL 17 · Flyway · Anthropic Java SDK (Claude Haiku 4.5) · springdoc-openapi · Docker / Docker Compose · JUnit 5 · Mockito · Testcontainers · GitHub Actions · Maven
+Java 21 · Spring Boot 4 · Spring Data JPA / Hibernate · PostgreSQL 17 · Flyway · Anthropic Java SDK (Claude Haiku 4.5) · springdoc-openapi · Docker / Docker Compose · JUnit 5 · Mockito · Testcontainers · GitHub Actions · n8n · Maven
 
 ## Running locally
 
@@ -53,6 +54,7 @@ The API runs on `http://localhost:8081`. Interactive docs: `http://localhost:808
 | `DELETE` | `/api/reviews/classifications` | Clears all categories (to re-run after a prompt change) |
 | `GET` | `/api/reviews?category=BUG&votedUp=false&page=0&size=20` | Lists reviews, newest first |
 | `GET` | `/api/reviews/stats` | Totals, % positive and counts per category |
+| `GET` | `/api/reviews/digest?days=7` | Summary of the last N days with the newest bug reports and feature requests |
 
 Example:
 
@@ -65,6 +67,21 @@ curl -X POST "localhost:8081/api/reviews/classify?limit=40"
 
 curl "localhost:8081/api/reviews?category=BUG"
 ```
+
+## Weekly Discord digest (n8n)
+
+```
+Every Monday 10:00 → import new reviews → classify with Claude → GET /digest → format message → Discord webhook
+```
+
+1. Create a webhook in your Discord server (*Server Settings → Integrations → Webhooks*) and put its URL in the `DISCORD_WEBHOOK_URL` environment variable.
+2. `docker compose up -d`, then import the workflow:
+   ```bash
+   docker compose exec n8n n8n import:workflow --input=/workflows/weekly-digest.json
+   ```
+3. Open `http://localhost:5678`, run the workflow once to test it, and activate it.
+
+The workflow lives in [`n8n/weekly-digest.json`](n8n/weekly-digest.json). The webhook URL is read from the environment, so it never ends up in the repository.
 
 ## Tests
 

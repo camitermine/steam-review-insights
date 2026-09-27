@@ -32,5 +32,24 @@ services:
     ports:
       - "${APP_PORT:-8081}:8081"
 
+  # Automatizaciones: http://localhost:5678
+  # Importar el flujo:  docker compose exec n8n n8n import:workflow --input=/workflows/weekly-digest.json
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.40.6
+    depends_on:
+      - app
+    environment:
+      GENERIC_TIMEZONE: America/Argentina/Buenos_Aires
+      TZ: America/Argentina/Buenos_Aires
+      # El flujo lee la URL del webhook con $env.DISCORD_WEBHOOK_URL, así nunca queda guardada en el JSON del repo.
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./n8n:/workflows:ro
+
 volumes:
   postgres-data:
+  n8n-data:

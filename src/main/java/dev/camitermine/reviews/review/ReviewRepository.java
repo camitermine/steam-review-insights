@@ -1,5 +1,6 @@
 package dev.camitermine.reviews.review;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -42,4 +43,21 @@ public interface ReviewRepository extends JpaRepository<Review, String> {
             group by r.category
             """)
     List<CategoryCount> countByCategory(long appId);
+
+    // --- Consultas para el resumen semanal (reseñas creadas desde una fecha) ---
+
+    long countByAppIdAndCreatedAtGreaterThanEqual(long appId, Instant since);
+
+    long countByAppIdAndVotedUpAndCreatedAtGreaterThanEqual(long appId, boolean votedUp, Instant since);
+
+    @Query("""
+            select new dev.camitermine.reviews.review.CategoryCount(r.category, count(r))
+            from Review r
+            where r.appId = :appId and r.category is not null and r.createdAt >= :since
+            group by r.category
+            """)
+    List<CategoryCount> countByCategorySince(long appId, Instant since);
+
+    List<Review> findByAppIdAndCategoryAndCreatedAtGreaterThanEqual(long appId, ReviewCategory category,
+                                                                    Instant since, Pageable pageable);
 }
