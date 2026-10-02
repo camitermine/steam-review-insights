@@ -32,6 +32,9 @@ public class Review {
 
     private Instant createdAt;
 
+    /** SteamID64 del autor. Null en reseñas importadas antes de la migración V2. */
+    private String authorSteamId;
+
     /** Null hasta que la reseña se clasifica. */
     @Enumerated(EnumType.STRING)
     private ReviewCategory category;
@@ -42,6 +45,11 @@ public class Review {
 
     public Review(String id, long appId, String language, String text, boolean votedUp,
                   int playtimeAtReview, Instant createdAt) {
+        this(id, appId, language, text, votedUp, playtimeAtReview, createdAt, null);
+    }
+
+    public Review(String id, long appId, String language, String text, boolean votedUp,
+                  int playtimeAtReview, Instant createdAt, String authorSteamId) {
         this.id = id;
         this.appId = appId;
         this.language = language;
@@ -49,6 +57,7 @@ public class Review {
         this.votedUp = votedUp;
         this.playtimeAtReview = playtimeAtReview;
         this.createdAt = createdAt;
+        this.authorSteamId = authorSteamId;
     }
 
     public String getId() { return id; }
@@ -59,6 +68,22 @@ public class Review {
     public int getPlaytimeAtReview() { return playtimeAtReview; }
     public Instant getCreatedAt() { return createdAt; }
     public ReviewCategory getCategory() { return category; }
+    public String getAuthorSteamId() { return authorSteamId; }
+
+    /** Link a la reseña en la comunidad de Steam, o null si no conocemos al autor. */
+    public String getSteamUrl() {
+        return authorSteamId == null ? null
+                : "https://steamcommunity.com/profiles/" + authorSteamId + "/recommended/" + appId + "/";
+    }
+
+    /** Completa el autor en reseñas viejas. Devuelve true si cambió algo. */
+    public boolean backfillAuthor(String steamId) {
+        if (authorSteamId != null || steamId == null) {
+            return false;
+        }
+        authorSteamId = steamId;
+        return true;
+    }
 
     public void classifyAs(ReviewCategory category) {
         this.category = category;

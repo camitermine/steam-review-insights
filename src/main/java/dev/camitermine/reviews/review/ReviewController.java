@@ -1,12 +1,19 @@
 package dev.camitermine.reviews.review;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumMap;
+import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PagedModel;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -89,6 +96,36 @@ public class ReviewController {
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         var reviews = repository.search(steamProperties.appId(), votedUp, category, pageable);
         return new PagedModel<>(reviews.map(ReviewResponse::from));
+    }
+
+    /** Columnas separadas por ";" y con BOM UTF-8, para que Excel en español las abra bien de entrada. */
+    @Operation(summary = "Export all reviews as CSV",
+            description = "Semicolon-separated, UTF-8 with BOM so Excel opens it correctly. Newest first.")
+    @GetMapping(value = "/export.csv", produces = "text/csv")
+    public ResponseEntity<String> exportCsv() {
+        StringBuilder csv = new StringBuilder("﻿"); // BOM: Excel detecta UTF-8 (acentos, emojis)
+        csv.append("fecha;voto;categoria;horas_jugadas;resena;link_steam;id\n");
+        for (Review r : repository.findByAppId(steamProperties.appId(), Sort.by(Sort.Direction.DESC, "createdAt"))) {
+            csv.append(CSV_DATE.format(r.getCreatedAt())).append(';')
+                    .append(r.isVotedUp() ? "Positiva" : "Negativa").append(';')
+                    .append(r.getCategory() == null ? "SIN CLASIFICAR" : r.getCategory().name()).append(';')
+                    .append(String.format(Locale.ROOT, "%.1f", r.getPlaytimeAtReview() / 60.0)).append(';')
+                    .append(csvField(r.getText())).append(';')
+                    .append(r.getSteamUrl() == null ? "" : r.getSteamUrl()).append(';')
+                    .append(r.getId()).append('\n');
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"reviews.csv\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(csv.toString());
+    }
+
+    private static final DateTimeFormatter CSV_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+            .withZone(ZoneId.of("America/Argentina/Buenos_Aires"));
+
+    /** Entre comillas, duplicando las comillas internas, para que los ";" y saltos de línea del texto no rompan el CSV. */
+    static String csvField(String value) {
+        return "\"" + (value == null ? "" : value.replace("\"", "\"\"")) + "\"";
     }
 
     @Operation(summary = "Review statistics", description = "Totals, % positive and counts per category.")

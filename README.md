@@ -8,7 +8,8 @@ Built around [Goblin Cleanup](https://store.steampowered.com/app/2748340/) (publ
 
 ## Features
 
-- Imports all reviews from Steam's public review API (cursor-based pagination, no API key needed)
+- Imports all reviews from Steam's Web API ([`IUserReviewsService/GetAppReviews`](https://partner.steamgames.com/doc/webapi/IUserReviewsService)) with cursor-based pagination, no API key needed
+- Automatic retries with exponential backoff when Steam rate-limits the request (HTTP 429) or returns a 5xx error
 - Idempotent imports: re-running never duplicates reviews
 - **LLM classification** with Claude Haiku 4.5 into `BUG`, `FEATURE_REQUEST`, `POSITIVE` or `OTHER`, in any language
   - Structured outputs: the API guarantees the response matches a JSON schema, so there is no free-text parsing
@@ -21,7 +22,11 @@ Built around [Goblin Cleanup](https://store.steampowered.com/app/2748340/) (publ
 - PostgreSQL with versioned schema migrations (Flyway)
 - Dockerized: multi-stage image running as a non-root user, one-command setup with Docker Compose
 - Integration tests against a real PostgreSQL with Testcontainers, run on every push by GitHub Actions
-- **Weekly Discord digest** automated with n8n: every Monday it imports new reviews, classifies them and posts a summary with the latest bug reports
+- **Weekly Discord digest** automated with n8n: every Monday it imports new reviews, classifies them and posts rich embeds to Discord:
+  - an **AI summary** (Claude) of the 2–3 topics players raised most that week
+  - the latest bug reports and feature requests with their full text, playtime and a link to the review on Steam
+  - if the AI summary fails, the digest is still sent without it
+- **CSV export** (`GET /api/reviews/export.csv`), ready to open in Excel or Google Sheets
 
 ### Roadmap
 
@@ -55,6 +60,7 @@ The API runs on `http://localhost:8081`. Interactive docs: `http://localhost:808
 | `GET` | `/api/reviews?category=BUG&votedUp=false&page=0&size=20` | Lists reviews, newest first |
 | `GET` | `/api/reviews/stats` | Totals, % positive and counts per category |
 | `GET` | `/api/reviews/digest?days=7` | Summary of the last N days with the newest bug reports and feature requests |
+| `GET` | `/api/reviews/export.csv` | All reviews as CSV (semicolon-separated, UTF-8 with BOM for Excel) |
 
 Example:
 
@@ -82,6 +88,14 @@ Every Monday 10:00 → import new reviews → classify with Claude → GET /dige
 3. Open `http://localhost:5678`, run the workflow once to test it, and activate it.
 
 The workflow lives in [`n8n/weekly-digest.json`](n8n/weekly-digest.json). The webhook URL is read from the environment, so it never ends up in the repository.
+
+## Steam API migration
+
+In October 2026 Steam deprecated the store endpoint `store.steampowered.com/appreviews/<appid>?json=1` (disabled on October 22). The app now uses the Web API method `IUserReviewsService/GetAppReviews`:
+
+- Parameters are sent as `input_json`, and filters are enums (`filter: 1` = recent, `purchase_type: 1` = all).
+- The response is wrapped in `{"response": {...}}` and has no `success` field, so errors are detected through the HTTP status.
+- Anonymous calls share a lower rate limit, so `429` responses are retried with exponential backoff (`app.steam.max-retries`, `app.steam.retry-backoff`).
 
 ## Tests
 

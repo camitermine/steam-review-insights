@@ -6,11 +6,19 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Una página de la respuesta de /appreviews/{appId}?json=1.
+ * Una página de reseñas de IUserReviewsService/GetAppReviews.
  * Solo mapeamos los campos que usamos; el resto se ignora.
+ * A diferencia del endpoint viejo (/appreviews), no hay campo "success": los errores llegan como status HTTP.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SteamReviewPage(int success, String cursor, List<SteamReview> reviews) {
+public record SteamReviewPage(String cursor, List<SteamReview> reviews) {
+
+    static final SteamReviewPage EMPTY = new SteamReviewPage(null, List.of());
+
+    /** La Web API de Steam envuelve todo en {"response": {...}}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Envelope(SteamReviewPage response) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SteamReview(
@@ -23,6 +31,8 @@ public record SteamReviewPage(int success, String cursor, List<SteamReview> revi
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Author(@JsonProperty("playtime_at_review") int playtimeAtReview) {
+    public record Author(
+            @JsonProperty("steamid") String steamId,
+            @JsonProperty("playtime_at_review") int playtimeAtReview) {
     }
 }

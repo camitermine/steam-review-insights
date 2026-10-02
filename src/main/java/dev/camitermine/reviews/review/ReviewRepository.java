@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -60,4 +61,10 @@ public interface ReviewRepository extends JpaRepository<Review, String> {
 
     List<Review> findByAppIdAndCategoryAndCreatedAtGreaterThanEqual(long appId, ReviewCategory category,
                                                                     Instant since, Pageable pageable);
+
+    List<Review> findByAppIdAndCategoryInAndCreatedAtGreaterThanEqual(long appId, List<ReviewCategory> categories,
+                                                                      Instant since, Pageable pageable);
+
+    /** Para la exportación a CSV: todas las reseñas del juego, ordenadas. */
+    List<Review> findByAppId(long appId, Sort sort);
 }

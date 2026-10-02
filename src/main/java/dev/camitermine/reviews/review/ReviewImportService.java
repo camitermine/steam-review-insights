@@ -3,6 +3,9 @@ package dev.camitermine.reviews.review;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +32,7 @@ public class ReviewImportService {
         this.repository = repository;
     }
 
-    public record ImportResult(int imported, int skipped, int pages) {
+    public record ImportResult(int imported, int skipped, int updated, int pages) {
     }
 
     @Transactional
@@ -37,40 +40,54 @@ public class ReviewImportService {
         String cursor = "*";
         int imported = 0;
         int skipped = 0;
+        int updated = 0;
         int pages = 0;
 
         while (pages < maxPages) {
             SteamReviewPage page = steamClient.fetchPage(appId, cursor);
-            if (page == null || page.success() != 1 || page.reviews() == null || page.reviews().isEmpty()) {
+            if (page == null || page.reviews() == null || page.reviews().isEmpty()) {
                 break;
             }
             pages++;
 
+            // Una sola consulta por página para saber cuáles ya teníamos.
+            Map<String, Review> existing = repository.findAllById(
+                            page.reviews().stream().map(SteamReview::id).toList()).stream()
+                    .collect(Collectors.toMap(Review::getId, Function.identity()));
+
             List<Review> toSave = new ArrayList<>();
             for (SteamReview steamReview : page.reviews()) {
-                if (repository.existsById(steamReview.id())) {
-                    skipped++;
-                } else {
+                Review stored = existing.get(steamReview.id());
+                if (stored == null) {
                     toSave.add(toEntity(appId, steamReview));
+                    imported++;
+                } else {
+                    skipped++;
+                    // Reseñas importadas antes de guardar el autor: lo completamos para poder linkearlas.
+                    if (steamReview.author() != null && stored.backfillAuthor(steamReview.author().steamId())) {
+                        toSave.add(stored);
+                        updated++;
+                    }
                 }
             }
             repository.saveAll(toSave);
-            imported += toSave.size();
 
-            // Steam devuelve el mismo cursor cuando ya no hay más páginas.
+            // Por seguridad: si Steam repite el cursor, no hay más páginas.
             if (page.cursor() == null || page.cursor().equals(cursor)) {
                 break;
             }
             cursor = page.cursor();
         }
 
-        log.info("Importación de app {}: {} nuevas, {} repetidas, {} páginas", appId, imported, skipped, pages);
-        return new ImportResult(imported, skipped, pages);
+        log.info("Importación de app {}: {} nuevas, {} repetidas ({} con autor completado), {} páginas",
+                appId, imported, skipped, updated, pages);
+        return new ImportResult(imported, skipped, updated, pages);
     }
 
     private static Review toEntity(long appId, SteamReview r) {
         int playtime = r.author() != null ? r.author().playtimeAtReview() : 0;
+        String steamId = r.author() != null ? r.author().steamId() : null;
         return new Review(r.id(), appId, r.language(), r.text(), r.votedUp(), playtime,
-                Instant.ofEpochSecond(r.timestampCreated()));
+                Instant.ofEpochSecond(r.timestampCreated()), steamId);
     }
 }
